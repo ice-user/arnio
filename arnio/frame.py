@@ -281,6 +281,12 @@ class ArFrame:
 
         return self.select_columns(matched)
 
+    def _truncate_column_names(self, max_length=20):
+        return [
+            col[:max_length] + "..." if len(col) > max_length else col
+            for col in self.columns
+        ]
+
     # --- Dunder methods ---
 
     def __len__(self) -> int:
@@ -295,7 +301,7 @@ class ArFrame:
     def __str__(self) -> str:
         """Return a detailed string summary of the ArFrame."""
         lines = [f"ArFrame: {self.shape[0]} rows × {self.shape[1]} columns"]
-        lines.append(f"Columns: {self.columns}")
+        lines.append(f"Columns: {self._truncate_column_names()}")
         lines.append(f"DTypes:  {self.dtypes}")
         lines.append(f"Memory:  {self.memory_usage()} bytes")
         return "\n".join(lines)
