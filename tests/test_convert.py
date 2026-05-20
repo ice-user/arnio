@@ -1,5 +1,6 @@
 """Tests for pandas conversion."""
 
+import sys
 from decimal import Decimal
 
 import numpy as np
@@ -124,6 +125,136 @@ class TestToPandas:
             None,
             False,
         ]
+
+
+class TestToArrow:
+    def test_mixed_supported_columns(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame(
+            {
+                "name": ["Alice", None, "Charlie"],
+                "age": pd.Series([1, None, 3], dtype=pd.Int64Dtype()),
+                "score": [1.5, 2.0, None],
+                "active": pd.Series([True, None, False], dtype=pd.BooleanDtype()),
+            }
+        )
+        frame = ar.from_pandas(df)
+        table = ar.to_arrow(frame)
+
+        assert isinstance(table, pa.Table)
+        assert table.num_rows == 3
+        assert list(table.schema.names) == ["name", "age", "score", "active"]
+        assert table.column("name").type == pa.string()
+        assert table.column("age").type == pa.int64()
+        assert table.column("score").type == pa.float64()
+        assert table.column("active").type == pa.bool_()
+        assert table.column("name").to_pylist() == ["Alice", None, "Charlie"]
+        assert table.column("age").to_pylist() == [1, None, 3]
+        assert table.column("score").to_pylist() == [1.5, 2.0, None]
+        assert table.column("active").to_pylist() == [True, None, False]
+
+    def test_int64_no_nulls(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame({"age": [1, 2, 3]})
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("age").type == pa.int64()
+        assert table.column("age").to_pylist() == [1, 2, 3]
+
+    def test_int64_with_nulls(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame({"age": pd.Series([1, None, 3], dtype=pd.Int64Dtype())})
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("age").type == pa.int64()
+        assert table.column("age").to_pylist() == [1, None, 3]
+
+    def test_float64_with_nulls(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame({"score": [1.5, None, 3.0]})
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("score").type == pa.float64()
+        assert table.column("score").to_pylist() == [1.5, None, 3.0]
+
+    def test_normal_bool_dtype(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame({"active": [True, False, True]})
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("active").type == pa.bool_()
+        assert table.column("active").to_pylist() == [True, False, True]
+
+    def test_pandas_nullable_boolean_dtype(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame(
+            {"active": pd.Series([True, None, False], dtype=pd.BooleanDtype())}
+        )
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("active").type == pa.bool_()
+        assert table.column("active").to_pylist() == [True, None, False]
+
+    def test_all_null_pandas_nullable_boolean_dtype(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame(
+            {"active": pd.Series([pd.NA, pd.NA, pd.NA], dtype=pd.BooleanDtype())}
+        )
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("active").type == pa.bool_()
+        assert table.column("active").to_pylist() == [None, None, None]
+
+    def test_string_with_nulls(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame({"name": ["Alice", None, "Bob"]})
+        table = ar.to_arrow(ar.from_pandas(df))
+
+        assert table.column("name").type == pa.string()
+        assert table.column("name").to_pylist() == ["Alice", None, "Bob"]
+
+    def test_empty_frame(self):
+        pa = pytest.importorskip("pyarrow")
+
+        df = pd.DataFrame(
+            {
+                "name": ["Alice", "Bob"],
+                "age": pd.Series([1, 2], dtype=pd.Int64Dtype()),
+                "score": [1.5, 2.5],
+                "active": pd.Series([True, False], dtype=pd.BooleanDtype()),
+            }
+        )
+        frame = ar.from_pandas(df).head(0)
+        table = ar.to_arrow(frame)
+
+        assert isinstance(table, pa.Table)
+        assert table.num_rows == 0
+        assert list(table.schema.names) == ["name", "age", "score", "active"]
+        assert table.column("name").type == pa.string()
+        assert table.column("age").type == pa.int64()
+        assert table.column("score").type == pa.float64()
+        assert table.column("active").type == pa.bool_()
+
+    def test_rejects_non_arframe(self):
+        with pytest.raises(TypeError, match="frame must be an ArFrame"):
+            ar.to_arrow(pd.DataFrame({"x": [1, 2, 3]}))
+
+    def test_requires_pyarrow(self, monkeypatch):
+        pytest.importorskip("pyarrow")
+
+        frame = ar.from_pandas(pd.DataFrame({"x": [1, 2, 3]}))
+        monkeypatch.setitem(sys.modules, "pyarrow", None)
+
+        with pytest.raises(ImportError, match="pyarrow is required"):
+            ar.to_arrow(frame)
 
 
 class TestFromPandas:
@@ -533,7 +664,7 @@ class TestFromPandas:
         result = ar.to_pandas(ar.from_pandas(df))
         assert len(result) == 3
         assert result["active"].isna().all()
-        assert str(result["active"].dtype) == "string"
+        assert str(result["active"].dtype) == "boolean"
 
     def test_from_pandas_all_null_string_extension(self):
         df = pd.DataFrame({"name": pd.Series([pd.NA, pd.NA, pd.NA], dtype="string")})

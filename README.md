@@ -444,6 +444,7 @@ not to replace it.
 | **NumPy** | Prepare typed numeric data before array/modeling workflows. |
 | **scikit-learn** | Use Arnio cleaning as a preprocessing layer before model training. |
 | **DuckDB / Arrow** | Validate and prepare data before analytics and columnar exchange. |
+| **Arrow** | Export cleaned columnar data directly to `pyarrow.Table` for Arrow-native tooling. |
 | **notebooks** | Inspect quality issues and cleaning suggestions before analysis. |
 
 ### Row-dropping pipeline behavior
@@ -526,7 +527,12 @@ They follow a simple workflow:
   python examples/arnio_with_duckdb.py
 ```
 
-
+- **Arnio + Arrow**
+  Export cleaned data directly to `pyarrow.Table` for Arrow-native analytics and downstream tools.
+  Run:
+```bash
+  python -c "import arnio as ar, pandas as pd; df = pd.DataFrame({'id':[1,2],'name':['Alice','Bob']}); af = ar.from_pandas(df); print(ar.to_arrow(af))"
+```
 
 <br>
 

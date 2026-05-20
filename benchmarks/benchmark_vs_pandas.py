@@ -247,10 +247,10 @@ def run_case(case):
     if pd_rss_avg and ar_rss_avg:
         ram_reduction = (1 - (ar_rss_avg / pd_rss_avg)) * 100
         print(
-            f"\nSpeed: {avg(pd_times)/avg(ar_times):.1f}x | RAM: {ram_reduction:.0f}% reduction (RSS)"
+            f"\nSpeed: {avg(pd_times) / avg(ar_times):.1f}x | RAM: {ram_reduction:.0f}% reduction (RSS)"
         )
     else:
-        print(f"\nSpeed: {avg(pd_times)/avg(ar_times):.1f}x")
+        print(f"\nSpeed: {avg(pd_times) / avg(ar_times):.1f}x")
 
     baseline_case = baseline_data.get(case.name)
 

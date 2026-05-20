@@ -372,7 +372,7 @@ class DataQualityReport:
         )
         lines.append("</div>")
         lines.append(
-            f"<div class=\"pill\"><span class=\"muted\">Quality score</span> <span class=\"score {score_class(self.quality_score)}\">{e(f'{self.quality_score:.2f}')}</span></div>"
+            f'<div class="pill"><span class="muted">Quality score</span> <span class="score {score_class(self.quality_score)}">{e(f"{self.quality_score:.2f}")}</span></div>'
         )
         lines.append("</div>")
 
@@ -403,7 +403,7 @@ class DataQualityReport:
                 cls = "warn" if value < 0 else "muted"
                 lines.append("<tr>")
                 lines.append(f"<td><code>{e(key)}</code></td>")
-                lines.append(f"<td class=\"{cls}\">{e(f'{value:+.2f}')}</td>")
+                lines.append(f'<td class="{cls}">{e(f"{value:+.2f}")}</td>')
                 lines.append("</tr>")
             lines.append("</tbody>")
             lines.append("</table>")
@@ -431,7 +431,7 @@ class DataQualityReport:
                     top_bits: list[str] = []
                     for v, _c, r in col.top_values[:3]:
                         top_bits.append(
-                            f"<span class=\"chip\">{e(v)} · {e(f'{r:.0%}')}</span>"
+                            f'<span class="chip">{e(v)} · {e(f"{r:.0%}")}</span>'
                         )
                     top_html = "".join(top_bits)
                 else:
@@ -443,19 +443,19 @@ class DataQualityReport:
                 lines.append(f"<td>{e(col.semantic_type)}</td>")
                 lines.append(
                     "<td>"
-                    f"{e(col.null_count)} <span class=\"muted\">({e(f'{null_pct:.1f}%')})</span>"
+                    f'{e(col.null_count)} <span class="muted">({e(f"{null_pct:.1f}%")})</span>'
                     f'<div class="bar"><span style="width:{max(0.0, min(100.0, null_pct)):.2f}%"></span></div>'
                     "</td>"
                 )
                 lines.append(
                     "<td>"
-                    f"{e(col.unique_count)} <span class=\"muted\">({e(f'{unique_pct:.1f}%')})</span>"
+                    f'{e(col.unique_count)} <span class="muted">({e(f"{unique_pct:.1f}%")})</span>'
                     f'<div class="bar"><span style="width:{max(0.0, min(100.0, unique_pct)):.2f}%"></span></div>'
                     "</td>"
                 )
                 lines.append(f"<td>{top_html}</td>")
                 lines.append(
-                    f"<td class=\"{'warn' if col.warnings else 'muted'}\">{e(warnings_str)}</td>"
+                    f'<td class="{"warn" if col.warnings else "muted"}">{e(warnings_str)}</td>'
                 )
                 lines.append(f"<td>{e(suggested)}</td>")
                 lines.append("</tr>")

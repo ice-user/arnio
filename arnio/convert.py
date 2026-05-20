@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy as copylib
 import decimal
+import importlib
 import math
 from typing import Any
 
@@ -163,6 +164,105 @@ def _series_to_python_values(series: pd.Series, col_name: object) -> list[object
     return values
 
 
+def _mask_has_any_nulls(mask: object) -> bool:
+    """Return True if the optional null mask contains any True values."""
+    if mask is None:
+        return False
+    if hasattr(mask, "any"):
+        try:
+            return bool(mask.any())
+        except Exception:
+            pass
+    try:
+        return any(mask)
+    except Exception:
+        return False
+
+
+def _arnio_dtype_to_arrow_type(dtype: _DType, pa: Any) -> Any:
+    """Map internal Arnio dtypes to pyarrow scalar types."""
+    if dtype == _DType.INT64:
+        return pa.int64()
+    if dtype == _DType.FLOAT64:
+        return pa.float64()
+    if dtype == _DType.BOOL:
+        return pa.bool_()
+    return pa.string()
+
+
+def _column_to_arrow_array(col: Any, pa: Any) -> Any:
+    """Convert a C++ column to a pyarrow array with correct null handling."""
+    dtype = col.dtype()
+    arrow_type = _arnio_dtype_to_arrow_type(dtype, pa)
+    mask = col.get_null_mask()
+    has_nulls = _mask_has_any_nulls(mask)
+
+    if dtype == _DType.INT64 and not has_nulls:
+        arr = col.to_numpy_int()
+        return pa.array(arr, type=arrow_type)
+
+    if dtype == _DType.FLOAT64 and not has_nulls:
+        arr = col.to_numpy_float()
+        return pa.array(arr, type=arrow_type)
+
+    if dtype == _DType.BOOL and not has_nulls:
+        arr = col.to_numpy_bool()
+        return pa.array(arr, type=arrow_type)
+
+    values = col.to_python_list()
+    return pa.array(values, type=arrow_type)
+
+
+def to_arrow(frame: ArFrame) -> Any:
+    """Convert ArFrame to pyarrow.Table.
+
+    Only the supported scalar Arnio dtypes are mapped directly to Arrow:
+    ``INT64``, ``FLOAT64``, ``BOOL``, and ``STRING``.
+    Other ArFrame column types fall back to Arrow strings.
+
+    Parameters
+    ----------
+    frame : ArFrame
+        Input ArFrame to convert.
+
+    Returns
+    -------
+    pa.Table
+        Equivalent pyarrow Table with proper dtypes and null handling.
+
+    Raises
+    ------
+    ImportError
+        If ``pyarrow`` is not installed.
+    TypeError
+        If ``frame`` is not an ``ArFrame``.
+
+    Examples
+    --------
+    >>> frame = ar.read_csv("data.csv")
+    >>> table = ar.to_arrow(frame)
+    """
+    if not isinstance(frame, ArFrame):
+        raise TypeError("frame must be an ArFrame")
+
+    try:
+        pa = importlib.import_module("pyarrow")
+    except ImportError as exc:
+        raise ImportError(
+            "pyarrow is required to use ar.to_arrow(), but it is not installed. "
+            "Install it with 'pip install pyarrow'."
+        ) from exc
+
+    data = {}
+    cpp_frame = frame._frame
+
+    for i in range(cpp_frame.num_cols()):
+        col = cpp_frame.column_by_index(i)
+        data[col.name()] = _column_to_arrow_array(col, pa)
+
+    return pa.Table.from_pydict(data)
+
+
 def to_pandas(frame: ArFrame, *, copy: bool = False) -> pd.DataFrame:
     """Convert ArFrame to pandas.DataFrame.
 
@@ -200,32 +300,36 @@ def to_pandas(frame: ArFrame, *, copy: bool = False) -> pd.DataFrame:
         name = col.name()
         dtype = col.dtype()
         mask = col.get_null_mask()
+        has_nulls = _mask_has_any_nulls(mask)
 
         if dtype == _DType.INT64:
             arr = col.to_numpy_int()
-            if copy:
+            if copy or has_nulls:
                 arr = arr.copy()
             series = pd.Series(arr, dtype=pd.Int64Dtype())
-            series[mask] = pd.NA
+            if has_nulls:
+                series[mask] = pd.NA
             data[name] = series
         elif dtype == _DType.FLOAT64:
             arr = col.to_numpy_float()
-            if copy or mask.any():
+            if copy or has_nulls:
                 arr = arr.copy()
-            if mask.any():
+            if has_nulls:
                 arr[mask] = np.nan
             data[name] = arr
         elif dtype == _DType.BOOL:
             arr = col.to_numpy_bool()
-            if copy:
+            if copy or has_nulls:
                 arr = arr.copy()
             series = pd.Series(arr, dtype=pd.BooleanDtype())
-            series[mask] = pd.NA
+            if has_nulls:
+                series[mask] = pd.NA
             data[name] = series
         else:
             values = col.to_python_list()
             series = pd.Series(values, dtype=pd.StringDtype())
-            series[mask] = pd.NA
+            if has_nulls:
+                series[mask] = pd.NA
             data[name] = series
 
     result = pd.DataFrame(data)
@@ -235,8 +339,13 @@ def to_pandas(frame: ArFrame, *, copy: bool = False) -> pd.DataFrame:
 
 
 def _pandas_dtype_to_arnio(dtype: object) -> _DType | None:
+    """Preserve supported pandas dtype hints for ArFrame conversion."""
     if dtype == pd.Int64Dtype():
         return _DType.INT64
+    if dtype == pd.BooleanDtype():
+        return _DType.BOOL
+    if str(dtype) == "bool":
+        return _DType.BOOL
     if str(dtype) == "float64":
         return _DType.FLOAT64
     return None

@@ -925,7 +925,7 @@ def test_report_to_markdown_basic(tmp_path):
 def test_report_to_markdown_includes_uniqueness_metrics(tmp_path):
     path = tmp_path / "unique_metrics.csv"
 
-    path.write_text("id,name\n" "1,Alice\n" "2,Bob\n" "2,Bob\n")
+    path.write_text("id,name\n1,Alice\n2,Bob\n2,Bob\n")
 
     report = ar.profile(ar.read_csv(path))
 

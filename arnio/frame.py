@@ -276,7 +276,7 @@ class ArFrame:
 
         if not matched:
             raise ValueError(
-                "No columns match the dtype selection. " f"Frame dtypes: {col_dtypes}."
+                f"No columns match the dtype selection. Frame dtypes: {col_dtypes}."
             )
 
         return self.select_columns(matched)
